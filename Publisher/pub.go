@@ -6,7 +6,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"runtime"
 	"strconv"
 	"time"
 
@@ -25,8 +24,7 @@ func main() {
 	go startPub()
 
 	fmt.Println("Hello from publisher")
-
-	runtime.Goexit()
+	fmt.Scanln()
 }
 
 func startPub() {
