@@ -34,9 +34,9 @@ func startPub() {
 	subj := "sensorData"
 	i := 1
 	for {
-		msg := []models.Message{}
+		msg := []models.Sensor{}
 		for i := 1; i < 4; i++ {
-			s := models.Message{}
+			s := models.Sensor{}
 			s.Name = "Sensor" + strconv.Itoa(i)
 			s.Timestamp = time.Now().Unix()
 			s.Value = min + rand.Float64()*(max-min)
@@ -49,7 +49,7 @@ func startPub() {
 	}
 }
 
-func publish(subj string, msg []models.Message) {
+func publish(subj string, msg []models.Sensor) {
 
 	msgBody, err := json.Marshal(msg)
 	if err != nil {

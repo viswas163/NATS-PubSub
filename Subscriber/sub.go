@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"runtime"
 
+	"nats-pubsub/db"
 	"nats-pubsub/models"
 
 	"github.com/nats-io/nats.go"
@@ -12,17 +12,26 @@ import (
 
 func main() {
 
+	db.Init()
 	nc, _ := nats.Connect(nats.DefaultURL)
 
 	nc.Subscribe("sensorData", func(msg *nats.Msg) {
-		msgObj := []models.Message{}
+		msgObj := []models.Sensor{}
 		json.Unmarshal(msg.Data, &msgObj)
+		for _, m := range msgObj {
+			m.InsertRaw()
+			m.InsertAvg()
+		}
 		fmt.Println(msgObj)
 	})
 	nc.Flush()
 
 	fmt.Println("Hello from subscriber")
+	fmt.Scanln()
 
-	runtime.Goexit()
+	exit()
+}
 
+func exit() {
+	db.Close()
 }
