@@ -27,16 +27,18 @@ func main() {
 			str += fmt.Sprintf("%.1f, ", m.Value)
 		}
 		models.InsertSensorsAvg(avg, msgObj[0].Timestamp)
-		fmt.Println("Success! Received :", str, "from publisher.")
+
+		fmt.Println("Success! Received :", str, "from publisher")
+		fmt.Println()
 	})
 	nc.Flush()
 
 	fmt.Println("Hello from subscriber")
 	fmt.Scanln()
 
-	exit()
+	shutdown()
 }
 
-func exit() {
+func shutdown() {
 	db.Close()
 }
