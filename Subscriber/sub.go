@@ -18,20 +18,27 @@ func main() {
 	nc.Subscribe("sensorData", func(msg *nats.Msg) {
 		msgObj := []models.Sensor{}
 		json.Unmarshal(msg.Data, &msgObj)
-		for _, m := range msgObj {
+		avg := 0.0
+		str := ""
+		for i, m := range msgObj {
+			avg = ((avg * float64(i)) + m.Value) / (float64(i) + 1)
 			m.InsertRaw()
 			m.InsertAvg()
+			str += fmt.Sprintf("%.1f, ", m.Value)
 		}
-		fmt.Println(msgObj)
+		models.InsertSensorsAvg(avg, msgObj[0].Timestamp)
+
+		fmt.Println("Success! Received :", str, "from publisher")
+		fmt.Println()
 	})
 	nc.Flush()
 
 	fmt.Println("Hello from subscriber")
 	fmt.Scanln()
 
-	exit()
+	shutdown()
 }
 
-func exit() {
+func shutdown() {
 	db.Close()
 }

@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
-	"runtime"
 	"strconv"
 	"time"
 
 	"nats-pubsub/models"
 
 	"github.com/nats-io/nats.go"
+)
+
+const (
+	minWaitTime, maxWaitTime = 8000, 12000
 )
 
 var (
@@ -25,28 +27,25 @@ func main() {
 	go startPub()
 
 	fmt.Println("Hello from publisher")
-
-	runtime.Goexit()
+	fmt.Scanln()
 }
 
 func startPub() {
-	min, max := 20.0, 60.0
 	subj := "sensorData"
-	i := 1
 	for {
-		msg := []models.Sensor{}
-		for i := 1; i < 4; i++ {
-			s := models.Sensor{}
-			s.Name = "Sensor" + strconv.Itoa(i)
-			s.Timestamp = time.Now().Unix()
-			s.Value = min + rand.Float64()*(max-min)
-			s.Value = math.Round(s.Value*10) / 10
-			msg = append(msg, s)
-		}
+		msg := getRandomSensorValues()
 		publish(subj, msg)
-		time.Sleep(time.Duration(rand.Intn(2000)+3000) * time.Millisecond)
-		i++
+		time.Sleep(time.Duration(rand.Intn(maxWaitTime-minWaitTime)+minWaitTime) * time.Millisecond)
 	}
+}
+
+func getRandomSensorValues() []models.Sensor {
+	msg := []models.Sensor{}
+	for i := 1; i < 4; i++ {
+		s := models.CreateSensor("Sensor" + strconv.Itoa(i))
+		msg = append(msg, s)
+	}
+	return msg
 }
 
 func publish(subj string, msg []models.Sensor) {
@@ -60,5 +59,10 @@ func publish(subj string, msg []models.Sensor) {
 		log.Fatal(err)
 	}
 	nc.Flush()
-	log.Println("Published :", string(msgBody), " to :", subj)
+	str := ""
+	for _, m := range msg {
+		str += fmt.Sprintf("%.1f, ", m.Value)
+	}
+
+	log.Println("Published :", str, "to :", subj)
 }
