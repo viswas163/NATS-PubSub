@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"nats-pubsub/util"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // pq library for Postgres DB
 )
 
 const (
@@ -35,6 +35,11 @@ func Init() {
 	fmt.Println("Successfully connected!")
 }
 
+// GetInstance : Gets the initiated db instance
+func GetInstance() *sql.DB {
+	return db
+}
+
 // Close : Closes the db connection
 func Close() {
 	db.Close()
@@ -53,9 +58,4 @@ func Test() {
 		fmt.Println("id | sensorName")
 		fmt.Printf("%3v | %8v\n", id, sensorName)
 	}
-}
-
-// GetInstance : Gets the initiated db instance
-func GetInstance() *sql.DB {
-	return db
 }
