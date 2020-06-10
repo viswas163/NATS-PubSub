@@ -19,13 +19,15 @@ func main() {
 		msgObj := []models.Sensor{}
 		json.Unmarshal(msg.Data, &msgObj)
 		avg := 0.0
+		str := ""
 		for i, m := range msgObj {
 			avg = ((avg * float64(i)) + m.Value) / (float64(i) + 1)
 			m.InsertRaw()
 			m.InsertAvg()
+			str += fmt.Sprintf("%.1f, ", m.Value)
 		}
 		models.InsertSensorsAvg(avg, msgObj[0].Timestamp)
-		fmt.Printf("Success! Received %d items from publisher.\n\n", len(msgObj))
+		fmt.Println("Success! Received :", str, "from publisher.")
 	})
 	nc.Flush()
 

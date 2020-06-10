@@ -58,5 +58,10 @@ func publish(subj string, msg []models.Sensor) {
 		log.Fatal(err)
 	}
 	nc.Flush()
-	log.Println("Published :", string(msgBody), " to :", subj)
+	str := ""
+	for _, m := range msg {
+		str += fmt.Sprintf("%.1f, ", m.Value)
+	}
+
+	log.Println("Published :", str, "to :", subj)
 }
