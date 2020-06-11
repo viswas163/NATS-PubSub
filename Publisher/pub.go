@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	minWaitTime, maxWaitTime = 8000, 12000
+	minWaitTime, maxWaitTime = 99, 101
 )
 
 var (
