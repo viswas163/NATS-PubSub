@@ -5,15 +5,21 @@ import (
 	"log"
 	"nats-pubsub/db"
 	"nats-pubsub/models"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lib/pq"
 )
 
 const (
-	gophers = 10
-	entries = 100
+	gophers = 20
+	entries = 5000
+)
+
+var (
+	maxTime = 0.0
 )
 
 func main() {
@@ -25,12 +31,15 @@ func main() {
 func testGoBatchDB() {
 	// create string to pass
 	var sStmt string = "insert into sensors_raw_values (sensor_id, value, created_on) values "
-
+	var wg sync.WaitGroup
+	wg.Add(gophers)
 	// run the insert function using 10 go routines
 	for i := 0; i < gophers; i++ {
 		// spin up a gopher
-		go gopherSprintf(i, sStmt)
+		go gopherSprintf(&wg, i, sStmt)
 	}
+	wg.Wait()
+	fmt.Printf("Operation took %f sec", maxTime)
 
 	// this is a simple way to keep a program open
 	// the go program will close when a key is pressed
@@ -38,30 +47,8 @@ func testGoBatchDB() {
 	fmt.Scanln(&input)
 }
 
-func gopherExec(gopherID int, sStmt string) {
-
-	db := db.GetInstance()
-
-	stmt, err := db.Prepare(sStmt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	a := time.Now()
-	fmt.Printf("Gopher Id: %v started now\n", gopherID)
-
-	for i := 0; i < entries; i++ {
-		res, err := stmt.Exec(23.4, time.Now())
-		if err != nil || res == nil {
-			log.Fatal(err)
-		}
-	}
-
-	stmt.Close()
-
-	fmt.Printf("Gopher Id: %v completed! || Took: %v sec\n", gopherID, time.Now().Sub(a).Seconds())
-}
-
-func gopherAppend(gopherID int, sStmt string) {
+func gopherAppend(wg *sync.WaitGroup, gopherID int, sStmt string) {
+	defer wg.Done()
 
 	db := db.GetInstance()
 
@@ -91,7 +78,9 @@ func gopherAppend(gopherID int, sStmt string) {
 	fmt.Printf("Gopher Id: %v completed! || Took: %v sec\n", gopherID, time.Now().Sub(a).Seconds())
 }
 
-func gopherSprintf(gopherID int, sStmt string) {
+func gopherSprintf(wg *sync.WaitGroup, gopherID int, sStmt string) {
+	defer wg.Done()
+
 	db := db.GetInstance()
 
 	a := time.Now()
@@ -100,19 +89,32 @@ func gopherSprintf(gopherID int, sStmt string) {
 	sStmt += "%s"
 	valueStrings := make([]string, 0, entries)
 	valueArgs := []interface{}{}
-	for i := 0; i < entries; i++ {
-		valueStrings = append(valueStrings, "(1, ?, ?)")
+	for i := 1; i <= entries; i++ {
+		s := "(1, $" + strconv.Itoa(2*i-1) + ", $" + strconv.Itoa(2*i) + ")"
+		valueStrings = append(valueStrings, s)
 		valueArgs = append(valueArgs, 23.4, a)
 	}
 	stmt := fmt.Sprintf(sStmt, strings.Join(valueStrings, ","))
-	fmt.Println(len(valueArgs))
-	_, err := db.Exec(stmt, valueArgs...)
+	// fmt.Println(stmt)
+	tmt, err := db.Prepare(stmt)
 	if err != nil {
+		fmt.Print("prep")
+		log.Fatal(err)
+	}
+	defer tmt.Close()
+
+	// fmt.Println(stmt)
+	// fmt.Println(valueArgs[:10])
+	res, err := tmt.Exec(valueArgs...)
+	if err != nil || res == nil {
 		fmt.Print("exec")
 		log.Fatal(err)
 	}
-
-	fmt.Printf("Gopher Id: %v completed! || Took: %v sec\n", gopherID, time.Now().Sub(a).Seconds())
+	dur := time.Now().Sub(a).Seconds()
+	fmt.Printf("Gopher Id: %v completed! || Took: %v sec\n", gopherID, dur)
+	if maxTime < dur {
+		maxTime = dur
+	}
 }
 
 func testPQCopyDB() {
