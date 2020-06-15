@@ -1,9 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
-	"nats-pubsub/db"
+	db2 "nats-pubsub/db"
 	"nats-pubsub/models"
 	"strconv"
 	"strings"
@@ -19,97 +20,66 @@ const (
 )
 
 var (
+	db      *sql.DB
 	maxTime = 0.0
 )
 
 func main() {
-	db.Init()
+	db2.Init()
 	testGoBatchDB()
-	db.Close()
+	defer db2.Close()
 }
 
 func testGoBatchDB() {
-	// create string to pass
-	var sStmt string = "insert into sensors_raw_values (sensor_id, value, created_on) values "
+
+	sStmt := "insert into sensors_raw_values (sensor_id, value, created_on) values %s"
 	var wg sync.WaitGroup
-	wg.Add(gophers)
-	// run the insert function using 10 go routines
-	for i := 0; i < gophers; i++ {
-		// spin up a gopher
-		go gopherSprintf(&wg, i, sStmt)
-	}
-	wg.Wait()
-	fmt.Printf("Operation took %f sec", maxTime)
-
-	// this is a simple way to keep a program open
-	// the go program will close when a key is pressed
-	var input string
-	fmt.Scanln(&input)
-}
-
-func gopherAppend(wg *sync.WaitGroup, gopherID int, sStmt string) {
-	defer wg.Done()
-
-	db := db.GetInstance()
-
-	a := time.Now()
-	fmt.Printf("Gopher Id: %v started now\n", gopherID)
-	vals := []interface{}{}
-	f := 23.4
-	for i := 0; i < entries; i++ {
-		sStmt += "(1,?,?),"
-		vals = append(vals, f, a)
-	}
-	sStmt = strings.TrimSuffix(sStmt, ",")
-	// fmt.Println(sStmt)
-	stmt, err := db.Prepare(sStmt)
-	if err != nil {
-		fmt.Print("prep")
-		log.Fatal(err)
-	}
-	res, err := stmt.Exec(vals...)
-	if err != nil || res == nil {
-		fmt.Print("exec")
-		log.Fatal(err)
-	}
-
-	stmt.Close()
-
-	fmt.Printf("Gopher Id: %v completed! || Took: %v sec\n", gopherID, time.Now().Sub(a).Seconds())
-}
-
-func gopherSprintf(wg *sync.WaitGroup, gopherID int, sStmt string) {
-	defer wg.Done()
-
-	db := db.GetInstance()
-
-	a := time.Now()
-	fmt.Printf("Gopher Id: %v started now\n", gopherID)
-
-	sStmt += "%s"
+	db = db2.GetInstance()
 	valueStrings := make([]string, 0, entries)
-	valueArgs := []interface{}{}
+	wg.Add(gophers)
+
 	for i := 1; i <= entries; i++ {
 		s := "(1, $" + strconv.Itoa(2*i-1) + ", $" + strconv.Itoa(2*i) + ")"
 		valueStrings = append(valueStrings, s)
-		valueArgs = append(valueArgs, 23.4, a)
 	}
-	stmt := fmt.Sprintf(sStmt, strings.Join(valueStrings, ","))
-	// fmt.Println(stmt)
-	tmt, err := db.Prepare(stmt)
+	sStmt = fmt.Sprintf(sStmt, strings.Join(valueStrings, ","))
+
+	tmt, err := db.Prepare(sStmt)
 	if err != nil {
-		fmt.Print("prep")
-		log.Fatal(err)
+		log.Fatal("prep :", err)
 	}
 	defer tmt.Close()
 
-	// fmt.Println(stmt)
-	// fmt.Println(valueArgs[:10])
-	res, err := tmt.Exec(valueArgs...)
-	if err != nil || res == nil {
-		fmt.Print("exec")
-		log.Fatal(err)
+	// run the insert function using go routines
+	for i := 0; i < gophers; i++ {
+		// spin up a gopher
+		go gopher(i, &wg, tmt)
 	}
+	wg.Wait()
+
+	fmt.Printf("Operation took %.2f sec", maxTime)
+
+	fmt.Scanln()
+}
+
+func gopher(gopherID int, wg *sync.WaitGroup, stmt *sql.Stmt) {
+	defer wg.Done()
+	a := time.Now()
+	fmt.Printf("Gopher Id: %v started now\n", gopherID)
+
+	// Prep args
+	valueArgs := []interface{}{}
+	for i := 1; i <= entries; i++ {
+		valueArgs = append(valueArgs, 23.4, a)
+	}
+
+	// Exec sql stmt with args
+	res, err := stmt.Exec(valueArgs...)
+	if err != nil || res == nil {
+		log.Fatal("exec :", err)
+	}
+
+	// Calc  print time taken for gopher
 	dur := time.Now().Sub(a).Seconds()
 	fmt.Printf("Gopher Id: %v completed! || Took: %v sec\n", gopherID, dur)
 	if maxTime < dur {
@@ -118,7 +88,7 @@ func gopherSprintf(wg *sync.WaitGroup, gopherID int, sStmt string) {
 }
 
 func testPQCopyDB() {
-	dbb := db.GetInstance()
+	dbb := db2.GetInstance()
 	dbb.SetMaxIdleConns(10)
 	dbb.SetMaxOpenConns(10)
 	dbb.SetConnMaxLifetime(0)
